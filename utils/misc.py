@@ -189,14 +189,14 @@ def mkexperiment(config,cover=False):
         if cover:
             # shutil.rmtree(experiment_path)
             os.makedirs(experiment_path)
-            os.makedirs(os.path.join(experiment_path, 'tensorboard'))
+            # os.makedirs(os.path.join(experiment_path, 'tensorboard'))
             os.makedirs(os.path.join(experiment_path, 'inter_result'))
         else:
             raise ValueError("Experiment '{}' already exists. Please modify the experiment name!"
                              .format(config.name))
     else:
         os.makedirs(experiment_path)
-        os.makedirs(os.path.join(experiment_path, 'tensorboard'))
+        # os.makedirs(os.path.join(experiment_path, 'tensorboard'))
         os.makedirs(os.path.join(experiment_path, 'inter_result'))
     return experiment_path
 

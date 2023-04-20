@@ -28,8 +28,9 @@ def main(config):
 
     # set up experiment
     experiment_path = mkexperiment(config, cover=True)
-    save_inter_result = os.path.join(experiment_path, 'inter_result')
-    model_path = os.path.join(config.model_path, config.name)
+    inter_result_path = os.path.join(experiment_path, 'inter_result')
+    model_path = os.path.join(config.bf_model_path, config.name)
+    bf_checkpoint_path = model_path + 'bf_{epoch_04d}.ckpt'
 
     # load data
     sim_datasets, sim_meta = load_training_volume(
@@ -51,14 +52,14 @@ def main(config):
 
     # setup device
     device_name = tf.test.gpu_device_name()
-    if device_name != '/device:GPU:' + config.GPU_NUM:
+    if device_name != '/device:GPU:0':  # + config.GPU_NUM:
         raise SystemError('GPU device not found')
     print('Found GPU at: {}'.format(device_name))
 
     # train
 
     bf_network.compile(loss=loss_fn, optimizer=optimizer)
-    bf_checkpoint_path = config.bf_model_path + 'bf_{epoch_04d}.ckpt'
+
 
     # images = tf.expand_dims(sim_bf_datasets, 4)
     # labels = tf.expand_dims(sim_sus_datasets, 4)
@@ -81,7 +82,10 @@ def main(config):
 
     # create checkpoint callback
     real_data = real_datasets[list(sim_datasets.keys())]["totalfield"]
-    cp_callpack = SaveImageCallback(bf_checkpoint_path, config.save_epoch, real_data)
+    cp_callpack = SaveImageCallback(save_dir_model=bf_checkpoint_path,
+                                    save_dir_inter_result=inter_result_path,
+                                    interval=config.save_epoch,
+                                    real_data=real_data)
 
     print('# Fit bf_model on training data')
     bf_history = bf_network.fit(train_images,
@@ -102,11 +106,10 @@ if __name__ == '__main__':
     # experiment info
     parser.add_argument('--name', type=str, default='version1')
     parser.add_argument('--experiment_path', type=str, default='')
-    parser.add_argument('--data_dir', type=str, default='')
-    parser.add_argument('--sus_path', type=str, default='/DATA_Temp/cj/QSM/NeXtQSM/train/')
+    parser.add_argument('--sus_path', type=str, default='/DATA_Temp/cj/QSM/NeXtQSM/train/train_synthetic_brain/')
     parser.add_argument('--localfield_path', type=str, default='/DATA_Temp/cj/QSM/NeXtQSM/train_localfield_masked/')
     parser.add_argument('--totalfield_path', type=str, default='/DATA_Temp/cj/QSM/NeXtQSM/train_totalfield/')
-    parser.add_argument('--realdata_path', type=str, default='')
+    parser.add_argument('--realdata_path', type=str, default='/DATA_Temp/cj/QSM/NeXtQSM/realdata_for_NeXtQSM/')
     parser.add_argument('--GPU_NUM', type=str, default='6')
 
     # model hyper-parameters
@@ -146,7 +149,5 @@ if __name__ == '__main__':
 
     config = parser.parse_args()
 
-    config.source_path = config.data_dir + 'source'
-    config.source_path = config.data_dir + 'mask'
 
     main(config)

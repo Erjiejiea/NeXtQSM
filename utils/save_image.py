@@ -13,16 +13,17 @@ import matplotlib.pyplot as plt
 
 
 class SaveImageCallback(tf.keras.callbacks.Callback):
-    def __init__(self, save_dir, interval, real_data):
+    def __init__(self, save_dir_model, save_dir_inter_result, interval, real_data):
         super(SaveImageCallback, self).__init__()
-        self.save_dir = save_dir
+        self.save_dir_model = save_dir_model
+        self.save_dir_inter_result = save_dir_inter_result
         self.interval = interval
         self.real_data = real_data
 
     def on_epoch_end(self, epoch, logs=None):
         if (epoch + 1) % self.interval == 0:
             # save model
-            model_path = os.path.join(self.save_dir)
+            model_path = os.path.join(self.save_dir_model)
             self.model.save(model_path)
 
             # save val data results
@@ -39,7 +40,7 @@ class SaveImageCallback(tf.keras.callbacks.Callback):
             png_data = np.array(fig.canvas.renderer.buffer_rgba())
             plt.close()
             png_encoded = tf.image.encode_png(png_data)
-            png_file_path = os.path.join(self.save_dir, "pred_val_epoch{}.png".format(epoch + 1))
+            png_file_path = os.path.join(self.save_dir_inter_result, "pred_val_epoch{}.png".format(epoch + 1))
             tf.io.write_file(png_file_path, png_encoded)
 
             # save test data results (real data)
@@ -55,5 +56,5 @@ class SaveImageCallback(tf.keras.callbacks.Callback):
             png_data = np.array(fig.canvas.renderer.buffer_rgba())
             plt.close()
             png_encoded = tf.image.encode_png(png_data)
-            png_file_path = os.path.join(self.save_dir, "pred_real_epoch{}.png".format(epoch + 1))
+            png_file_path = os.path.join(self.save_dir_inter_result, "pred_real_epoch{}.png".format(epoch + 1))
             tf.io.write_file(png_file_path, png_encoded)
