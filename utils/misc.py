@@ -187,7 +187,7 @@ def mkexperiment(config,cover=False):
     experiment_path = os.path.join(config.result_path,config.name)
     if os.path.exists(experiment_path):
         if cover:
-            # shutil.rmtree(experiment_path)
+            shutil.rmtree(experiment_path)
             os.makedirs(experiment_path)
             # os.makedirs(os.path.join(experiment_path, 'tensorboard'))
             os.makedirs(os.path.join(experiment_path, 'inter_result'))

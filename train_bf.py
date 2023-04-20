@@ -29,42 +29,67 @@ def main(config):
     # set up experiment
     experiment_path = mkexperiment(config, cover=True)
     inter_result_path = os.path.join(experiment_path, 'inter_result')
-    model_path = os.path.join(config.bf_model_path, config.name)
+    model_path = os.path.join(config.model_path, config.name)
     bf_checkpoint_path = model_path + 'bf_{epoch_04d}.ckpt'
 
     # load data
-    sim_datasets, sim_meta = load_training_volume(
-        {"totalfiled": config.totalfield_path, "localfiled": config.localfield_path})
-    real_datasets, real_meta = load_testing_volume({"totalfiled": config.realdata_path})
+    totalfield_paths = os.listdir(config.totalfield_path)
+    localfield_paths = os.listdir(config.localfield_path)
+    sim_datasets = []
+    sim_metas = []
+    num_samples = 0
+    # for index in range(len(totalfield_paths)):
+    for index in range(2):
+        sim_dataset, sim_meta = load_training_volume(
+        {"totalfiled": os.path.join(config.totalfield_path, totalfield_paths[index]),
+         "localfiled": os.path.join(config.localfield_path, localfield_paths[index]),
+         "mask": None})
+        sim_datasets.append(sim_dataset)
+        sim_metas.append(sim_meta)
+        num_samples = num_samples + 1
+    print('Loaded {} samples for training.'.format(num_samples))
+
+    real_tot_paths = os.listdir(os.path.join(config.realdata_path, 'totalfield'))
+    real_loc_paths = os.listdir(os.path.join(config.realdata_path, 'localfield'))
+    real_datasets = []
+    real_metas = []
+    num_samples_real = 0
+    for index2 in range(2):
+        real_dataset, real_meta = load_testing_volume(
+            {"totalfiled": os.path.join(config.realdata_path, 'totalfield', real_tot_paths[index2]),
+             "localfiled": os.path.join(config.realdata_path, 'localfield', real_loc_paths[index2]),
+             "mask": None})
+        real_datasets.append(real_dataset)
+        real_metas.append(real_meta)
+        num_samples_real = num_samples_real + 1
+    print('Loded {} real brain.'.format(num_samples_real))
 
     # model: BF
     bf_network = UNet(1, config.n_layers, config.starting_filters, 3, config.kernel_initializer, config.batch_norm,
                       0., get_act_function(config.act_func), config.conv_per_layer, False, False, None)
     # bf_network.load_weights(ckp_path + "zdir_calc-HRbf-rmse-weights")
     bf_network.summary((256, 256, 256, 1))  # (64, 64, 64, 1)
-    net_analysis(bf_network)
 
     # cost function
     loss_fn = tf.keras.losses.MeanSquaredError()
 
     # optimizer
-    optimizer = tf.keras.optimizer.Adam(learning_rate=config.learning_rate, beta_1=0.09, beta_2=0.009)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=config.learning_rate, beta_1=0.09, beta_2=0.009)
 
     # setup device
-    device_name = tf.test.gpu_device_name()
-    if device_name != '/device:GPU:0':  # + config.GPU_NUM:
-        raise SystemError('GPU device not found')
-    print('Found GPU at: {}'.format(device_name))
+    # device_name = tf.test.gpu_device_name()
+    # print(device_name)
+    # if device_name != '/device:GPU:' + config.GPU_NUM:
+    #     raise SystemError('GPU device not found')
+    # print('Found GPU at: {}'.format(device_name))
 
     # train
-
     bf_network.compile(loss=loss_fn, optimizer=optimizer)
-
 
     # images = tf.expand_dims(sim_bf_datasets, 4)
     # labels = tf.expand_dims(sim_sus_datasets, 4)
-    images = tf.convert_to_tensor(sim_datasets[list(sim_datasets.keys())]["totalfield"])
-    labels = tf.convert_to_tensor(sim_datasets[list(sim_datasets.keys())]["localfield"])
+    images = tf.convert_to_tensor(np.stack(item["totalfield"] for item in sim_datasets))
+    labels = tf.convert_to_tensor(np.stack(item["localfield"] for item in sim_datasets))
 
     train_sample_num = 2000 * 0.8
     test_sample_num= 2000 * 0.1
@@ -81,7 +106,7 @@ def main(config):
     )
 
     # create checkpoint callback
-    real_data = real_datasets[list(sim_datasets.keys())]["totalfield"]
+    real_data = tf.convert_to_tensor(np.stack(item["totalfield"] for item in real_datasets))
     cp_callpack = SaveImageCallback(save_dir_model=bf_checkpoint_path,
                                     save_dir_inter_result=inter_result_path,
                                     interval=config.save_epoch,
@@ -110,7 +135,7 @@ if __name__ == '__main__':
     parser.add_argument('--localfield_path', type=str, default='/DATA_Temp/cj/QSM/NeXtQSM/train_localfield_masked/')
     parser.add_argument('--totalfield_path', type=str, default='/DATA_Temp/cj/QSM/NeXtQSM/train_totalfield/')
     parser.add_argument('--realdata_path', type=str, default='/DATA_Temp/cj/QSM/NeXtQSM/realdata_for_NeXtQSM/')
-    parser.add_argument('--GPU_NUM', type=str, default='6')
+    parser.add_argument('--GPU_NUM', type=str, default='3')
 
     # model hyper-parameters
     parser.add_argument('--OUTPUT_C', type=int, default=1)  # OUTPUT CHANNELS
@@ -143,11 +168,9 @@ if __name__ == '__main__':
     parser.add_argument('--save_period', type=int, default=1)
 
     # misc
-    parser.add_argument('--bf_model_path', type=str, default='./models/')  # phase unwrapped (totalfield) to phase tissue (localfield)
+    parser.add_argument('--model_path', type=str, default='./models/')  # phase unwrapped (totalfield) to phase tissue (localfield)
     # parser.add_argument('--vn_model_path', type=str, default='./models/vn/')  # phase tissue (localfield) to susceptibility (chimap)
     parser.add_argument('--result_path', type=str, default='./results/')
 
     config = parser.parse_args()
-
-
     main(config)
