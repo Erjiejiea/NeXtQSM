@@ -127,6 +127,33 @@ def save_tf_result(tensor, save_dir,
     else:
         plt.imsave(save_dir + '.' + format, merge_img, cmap=cmap, vmin=crange[0], vmax=crange[1])
 
+def save_numpy_result(nparray, save_dir,
+                      nrow=4, padding=0, pad_value=0,
+                      format='jpg', cmap='gray', norm=False, crange=[0, 1]):
+    """Save a given numpy into an image file.
+    """
+    nmaps = nparray.shape[0]
+
+    xmaps = min(nrow, nmaps)
+    ymaps = int(math.ceil(float(nmaps) / xmaps))
+    height, width = int(nparray.shape[1] + padding), int(nparray.shape[2] + padding)
+    grid = np.full((nparray.shape[3], height * ymaps + padding, width * xmaps + padding), pad_value, dtype='float32')
+    k = 0
+    for y in range(ymaps):
+        for x in range(xmaps):
+            if k >= nmaps:
+                break
+            a = nparray[k, :, :, :]
+            b = np.squeeze(nparray[k, :, :, :])
+            grid[:, y * height + padding:(y + 1) * height - padding,
+            x * width + padding: (x + 1) * width - padding] = np.squeeze(nparray[k, :, :, :])
+            k = k + 1
+    merge_img = np.squeeze(np.transpose(grid, axes=[1, 2, 0]))
+    if norm:
+        plt.imsave(save_dir + '.' + format, merge_img, cmap=cmap)
+    else:
+        plt.imsave(save_dir + '.' + format, merge_img, cmap=cmap, vmin=crange[0], vmax=crange[1])
+
 
 def save_torch_result_with_label(tensor, label, save_dir, loss=False,
                                  nrow=4, padding=0, pad_value=0,
@@ -187,7 +214,7 @@ def mkexperiment(config,cover=False):
     experiment_path = os.path.join(config.result_path,config.name)
     if os.path.exists(experiment_path):
         if cover:
-            # shutil.rmtree(experiment_path)
+            shutil.rmtree(experiment_path)
             os.makedirs(experiment_path)
             # os.makedirs(os.path.join(experiment_path, 'tensorboard'))
             os.makedirs(os.path.join(experiment_path, 'inter_result'))

@@ -39,9 +39,9 @@ def load_training_volume(paths):
             if data[label] is not None and label != "mask":
                 data[label] *= data["mask"]
     else:
-        data["mask"] = tf.ones_like(data["source"])
+        data["mask"] = tf.ones_like(data["totalfiled"])
 
-    return {paths["source"].split("/")[-1].split(".")[0]: [data]}, meta
+    return {paths["totalfiled"].split("/")[-1].split(".")[0]: [data]}, meta
 
 
 def load_testing_volume(paths):
@@ -78,6 +78,16 @@ def load_testing_volume(paths):
             if data[label] is not None and label != "mask":
                 data[label] *= data["mask"]
     else:
-        data["mask"] = tf.ones_like(data["source"])
+        data["mask"] = tf.ones_like(data["totalfiled"])
 
-    return {paths["source"].split("/")[-1].split(".")[0]: [data]}, meta
+    return {paths["totalfiled"].split("/")[-1].split(".")[0]: [data]}, meta
+
+
+def load_train_nii(paths):
+
+    return
+
+
+def load_test_nii():
+
+    return

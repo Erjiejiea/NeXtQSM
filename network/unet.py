@@ -87,9 +87,10 @@ class UNet(tf.keras.Model):
 
     def summary(self, input_shape):
         """
-        :param input_shape: (32, 32, 1)
+        :param input_shape: (32, 32, 1)  my input_shape: (256, 256, 256, 1)
         """
         x = tf.keras.Input(shape=input_shape)
-        model = tf.keras.Model(inputs=[x], outputs=self.call(x, training=False))
+        print(input_shape)
+        model = tf.keras.Model(inputs=[x], outputs=self.call(x, training=False))  # False
         model.summary(line_length=130)
 

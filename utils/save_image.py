@@ -11,50 +11,35 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 
+from utils.misc import save_numpy_result
+
 
 class SaveImageCallback(tf.keras.callbacks.Callback):
-    def __init__(self, save_dir_model, save_dir_inter_result, interval, real_data):
+    def __init__(self, save_dir_inter_result, interval, real_data, crange):
         super(SaveImageCallback, self).__init__()
-        self.save_dir_model = save_dir_model
         self.save_dir_inter_result = save_dir_inter_result
         self.interval = interval
         self.real_data = real_data
+        self.crange = crange
 
     def on_epoch_end(self, epoch, logs=None):
         if (epoch + 1) % self.interval == 0:
-            # save model
-            model_path = os.path.join(self.save_dir_model)
-            self.model.save(model_path)
+            real_data_pred = self.model.predict(self.real_data[0])
 
-            # save val data results
-            _,_,x_test, y_test = self.model.validation_data
-            y_pred = self.model.predict(x_test)
-            fig, axes = plt.subplots(nrows=5,ncols=5, figsize=(10, 10))
-            for i, ax in enumerate(axes.flat):
-                ax.imshow(y_pred[i].reshape((28, 28), cmap='gray'))  # x_test[i]?
-                ax.set_xtricks([])
-                ax.set_ytricks([])
-                ax.set_xlabel("pred: {}".format(np.argmax(y_pred[i])))
-                ax.set_ylabel("true: {}".format(y_test[i]))
-            fig.canvas.draw()
-            png_data = np.array(fig.canvas.renderer.buffer_rgba())
-            plt.close()
-            png_encoded = tf.image.encode_png(png_data)
-            png_file_path = os.path.join(self.save_dir_inter_result, "pred_val_epoch{}.png".format(epoch + 1))
-            tf.io.write_file(png_file_path, png_encoded)
+            # save pictures
+            picture_file_path = os.path.join(self.save_dir_inter_result, "real_epoch{}".format(epoch + 1))
+            save_numpy_result(real_data_pred[:, :, :, 120, :], save_dir=picture_file_path,
+                              format='png', cmap='gray', norm=False, crange=self.crange)
 
-            # save test data results (real data)
-            real_data_pred = self.model.predict(self.real_data)
-            fig, axes = plt.subplots(nrows=5, ncols=5, figsize=(10, 10))
-            for i, ax in enumerate(axes.flat):
-                ax.imshow(real_data_pred[i].reshape((28, 28), cmap='gray'))
-                ax.set_xtricks([])
-                ax.set_ytricks([])
-                ax.set_xlabel([])
-                ax.set_ylabel([])
-            fig.canvas.draw()
-            png_data = np.array(fig.canvas.renderer.buffer_rgba())
-            plt.close()
-            png_encoded = tf.image.encode_png(png_data)
-            png_file_path = os.path.join(self.save_dir_inter_result, "pred_real_epoch{}.png".format(epoch + 1))
-            tf.io.write_file(png_file_path, png_encoded)
+            # free the memory
+            # del real_data_pred
+
+
+class MyCallback(tf.keras.callbacks.Callback):
+    def __init__(self, epoch_num):
+        super(MyCallback, self).__init__()
+        self.epoch_num = epoch_num
+
+    def on_epoch_end(self, epoch, logs=None):
+        # print(f"Epoch {epoch+1}/{self.epoch_num}  ")
+        print(f"Training loss: {logs['loss']:.4f}, Validation loss: {logs['val_loss']}")
