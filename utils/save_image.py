@@ -24,7 +24,7 @@ class SaveImageCallback(tf.keras.callbacks.Callback):
 
     def on_epoch_end(self, epoch, logs=None):
         if (epoch + 1) % self.interval == 0:
-            real_data_pred = self.model.predict(self.real_data[0])
+            real_data_pred = self.model.predict(self.real_data)
 
             # save pictures
             picture_file_path = os.path.join(self.save_dir_inter_result, "real_epoch{}".format(epoch + 1))
