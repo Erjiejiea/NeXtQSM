@@ -30,13 +30,13 @@ def load_data_nii_test(image_path):
 class ImageFolder(Sequence):
     """Load Variaty Chinese Fonts for Iterator. """
 
-    def __init__(self, input_root, gt_root, config, crop_key, mode='train'):
+    def __init__(self, input_root, gt_root, config, batch_size, crop_key=False, mode='train'):
         """Initializes image paths and preprocessing module."""
         self.config = config
         self.mode = mode
         self.input_root = input_root
         self.gt_root = gt_root
-        self.batch_size = config.BATCH_SIZE
+        self.batch_size = batch_size
 
         self.crop_key = crop_key
         self.crop_size = config.CROP_SIZE
@@ -53,13 +53,32 @@ class ImageFolder(Sequence):
         start = index * self.batch_size
         end = min(start + self.batch_size, len(self.image_paths))
         batch_input_paths = self.image_paths[start:end]
-        # batch_gt_paths = self.gt_paths[start:end]
+        batch_gt_paths = self.gt_paths[start:end]
 
         if self.mode == 'brain':
-            batch_input = np.array([self.get_data_pair(i) for i in batch_input_paths])
+            for i in range(len(batch_input_paths)):
+                input_array, gt_array = self.get_data_pair(i)
+                if i == 0:
+                    batch_input = input_array
+                else:
+                    batch_input = np.concatenate((batch_input, input_array), axis=0)
+
+            # print('batch_input shape for test: ', batch_input.shape, ' Index: ', index)
             return batch_input
+
         else:
-            batch_input, batch_gt = np.array([self.get_data_pair(i) for i in batch_input_paths])
+            for i in range(len(batch_input_paths)):
+
+                input_array, gt_array = self.get_data_pair(i)
+                if i == 0:
+                    batch_input = input_array
+                    batch_gt = gt_array
+                else:
+                    batch_input = np.append(batch_input, input_array, axis=0)
+                    batch_gt = np.append(batch_gt, gt_array, axis=0)
+
+            # print('batch_input shape for train: ', batch_input.shape, ' Index: ', index)
+
             return batch_input, batch_gt
 
         # -----To Tensor------#
@@ -74,36 +93,54 @@ class ImageFolder(Sequence):
 
     def get_data_pair(self, index):
         """Reads an image from a file and preprocesses it and returns."""
-        image_path = self.image_paths[index]
-        gt_path = self.gt_paths[index]
         if self.mode == 'brain':
-            image = load_data_nii_test(image_path)
+            # image_path = self.image_paths[index]
+            # image = load_data_nii_test(image_path)
+            #
+            # image = np.expand_dims(image, -1)
+            # image = np.expand_dims(image, 0)
+
+            image_path = self.image_paths[index]
+            gt_path = self.gt_paths[index]
+            image, gt = load_data_nii(image_path, gt_path)
+            image = np.expand_dims(image, -1)
+            image = np.expand_dims(image, 0)
+            gt = np.expand_dims(gt, -1)
+            gt = np.expand_dims(gt, 0)
+
+            return image, gt
+
         else:
+            image_path = self.image_paths[index]
+            gt_path = self.gt_paths[index]
             image, gt = load_data_nii(image_path, gt_path)
 
-        if self.crop_key:
-            # -----RandomCrop----- #
-            (h, w, d) = image.shape
-            th, tw, td = self.crop_size, self.crop_size, self.crop_size
-            drop_voxel = self.config.INPUT_H * 0.3
-            i = random.randint(drop_voxel, h - th - drop_voxel)
-            j = random.randint(drop_voxel, w - tw - drop_voxel)
-            k = random.randint(drop_voxel, d - td - drop_voxel)
-            if h <= th and w <= tw and d <= td:
-                print('Error! Your input size is too small: %d is smaller than crop size %d ' % (w, self.crop_size))
-                return
-            image = image[i:i + th, j:j + tw, k:k + td]
-            gt = gt[i:i + th, j:j + tw, k:k + td]
+            if self.crop_key:
+                # -----RandomCrop----- #
+                (h, w, d) = image.shape
+                th, tw, td = self.crop_size, self.crop_size, self.crop_size
+                drop_voxel = np.ceil(self.config.INPUT_H * 0.3)
+                i = random.randint(drop_voxel, h - th - drop_voxel)
+                j = random.randint(drop_voxel, w - tw - drop_voxel)
+                k = random.randint(drop_voxel, d - td - drop_voxel)
+                if h <= th and w <= tw and d <= td:
+                    print('Error! Your input size is too small: %d is smaller than crop size %d ' % (w, self.crop_size))
+                    return
+                image = image[i:i + th, j:j + tw, k:k + td]
+                gt = gt[i:i + th, j:j + tw, k:k + td]
 
-        if self.mode == 'brain':
-            return image
-        else:
+            image = np.expand_dims(image, -1)
+            image = np.expand_dims(image, 0)
+            gt = np.expand_dims(gt, -1)
+            gt = np.expand_dims(gt, 0)
+
             return image, gt
 
 
-def get_loader(input_path, gt_path, config, crop_key, shuffle=True, mode='train'):
+def get_loader(input_path, gt_path, config, batch_size, crop_key, mode='train'):
     """Builds and returns Dataloader."""
 
-    data_loader = ImageFolder(input_root=input_path, gt_root=gt_path, config=config, crop_key=crop_key, mode=mode)
+    data_loader = ImageFolder(input_root=input_path, gt_root=gt_path, config=config,
+                              batch_size=batch_size, crop_key=crop_key, mode=mode)
 
     return data_loader

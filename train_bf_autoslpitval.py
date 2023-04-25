@@ -21,10 +21,11 @@ from utils.save_image import SaveImageCallback, MyCallback
 def main(config):
     # check gpu
     os.environ['CUDA_VISIBLE_DEVICES'] = config.GPU_NUM
-    # gpus = tf.config.experimental.list_physical_devices('GPU')
-    # if gpus:
-    #     for gpu in gpus:
-    #         tf.config.experimental.set_memory_growth(gpu, True)
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    if gpus:
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+    # strategy = tf.distribute.MirroredStrategy(devices=["/gpu:0", "/gpu:1"])
     # print(tf.config.experimental.list_physical_devices('GPU'))
     # tf.debugging.set_log_device_placement(True)
 
@@ -38,19 +39,21 @@ def main(config):
     bf_checkpoint_path = model_path + '_bf_{epoch}.ckpt'
 
     # load data
-    train_dataset = get_loader(config.train_input_path, config.train_gt_path,
-                               config, config.crop_key, shuffle=True, mode='train')
-    test_dataset = get_loader(config.test_input_path, config.test_gt_path,
-                              config, crop_key=False, shuffle=True, mode='brain')
+    train_dataset = get_loader(config.train_input_path, config.train_gt_path, config,
+                               config.BATCH_SIZE, config.crop_key, mode='train')
+    test_dataset = get_loader(config.test_input_path, config.test_gt_path, config,
+                              1, False, mode='brain')
 
+    # with strategy.scope():
     # model: BF
     bf_network = UNet(1, config.n_layers, config.starting_filters, 3, config.kernel_initializer, config.batch_norm,
                       0., get_act_function(config.act_func), config.conv_per_layer, False, False, None)
-    bf_network.summary((256, 256, 256, 1),)  # (64, 64, 64, 1)
+    bf_network.summary((256, 256, 256, 1), )  # (64, 64, 64, 1)
 
     # cost function & optimizer
     bf_network.compile(loss=tf.keras.losses.MeanSquaredError(),
-                       optimizer=tf.keras.optimizers.Adam(learning_rate=config.learning_rate, beta_1=0.09, beta_2=0.009),
+                       optimizer=tf.keras.optimizers.Adam(learning_rate=config.learning_rate, beta_1=0.09,
+                                                          beta_2=0.009),
                        metrics=[tf.keras.metrics.MeanSquaredError()])
 
     # train
@@ -74,7 +77,7 @@ def main(config):
                                 epochs=config.epochs_train,
                                 callbacks=[checkpoint, cp_callback],
                                 shuffle=True,
-                                validation_split=0.1,
+                                # validation_split=0.1,
                                 verbose=2)  # pass callback to training for saving the model
 
     loss_bf_history = bf_history.history['loss']
@@ -91,14 +94,14 @@ if __name__ == '__main__':
     parser.add_argument('--train_gt_path', type=str, default='./data/train_localfield/')
     parser.add_argument('--test_input_path', type=str, default='./data/real_totalfield/')
     parser.add_argument('--test_gt_path', type=str, default='./data/real_localfield/')
-    parser.add_argument('--GPU_NUM', type=str, default='4')  # 3[0], 4[2], 5[4], 6[5], 7[6]
+    parser.add_argument('--GPU_NUM', type=str, default='7')  # 3[0], 4[2], 5[4], 6[5], 7[6]
 
     # dataset parameters
-    parser.add_argument('--BATCH_SIZE', type=int, default=1)
+    parser.add_argument('--BATCH_SIZE', type=int, default=2)
     parser.add_argument('--INPUT_H', type=int, default=256)
     parser.add_argument('--INPUT_W', type=int, default=256)
     parser.add_argument('--INPUT_D', type=int, default=256)
-    parser.add_argument('--crop_key', type=bool, default=False)
+    parser.add_argument('--crop_key', type=bool, default=True)
     parser.add_argument('--CROP_SIZE', type=int, default=64)
 
     # model hyper-parameters
