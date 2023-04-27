@@ -37,7 +37,7 @@ def main(config):
     experiment_path = mkexperiment(config, cover=True)
     inter_result_path = os.path.join(experiment_path, 'inter_result')
     model_path = os.path.join(config.model_path, config.name)
-    bf_checkpoint_path = model_path + '_vn_epoch_{epoch}.ckpt'
+    bf_checkpoint_path = model_path + '/' + config.name + '_epoch_{epoch}.ckpt'
 
     # load data
     train_dataset = get_loader(config.train_input_path, config.train_gt_path, config,
@@ -45,7 +45,7 @@ def main(config):
     val_dataset = get_loader(config.val_input_path, config.val_gt_path, config,
                                config.BATCH_SIZE, config.crop_key, mode='train')
     test_dataset = get_loader(config.test_input_path, config.test_gt_path, config,
-                              4, True, mode='brain')
+                              1, True, mode='brain')
 
     # print('Loaded {} samples for training.'.format(len(train_x_dataset)))
     # print('Loaded {} samples for validation.'.format(len(val_x_dataset)))
@@ -80,7 +80,7 @@ def main(config):
     # with tf.device('/GPU:0'):
     vn_network.compile(loss=loss_fn, optimizer=optimizer)  #metrics=['accuracy', 'val_loss']
     print('# Fit bf_model on training data')
-    bf_history = vn_network.fit(train_dataset,
+    vn_history = vn_network.fit(train_dataset,
                                 epochs=config.epochs_train,
                                 callbacks=[checkpoint, cp_callpack],
                                 shuffle=True,
@@ -88,10 +88,10 @@ def main(config):
                                 verbose=1)
     # pass callback to training for saving the model
 
-    loss_bf_history = bf_history.history['loss']
-    print('Loss: ', loss_bf_history)
+    loss_vn_history = vn_history.history['loss']
+    print('Loss: ', loss_vn_history)
 
-    plot_history(bf_history)
+    plot_history(vn_history)
 
 
 if __name__ == '__main__':
@@ -106,7 +106,7 @@ if __name__ == '__main__':
     parser.add_argument('--val_gt_path', type=str, default='./data_val/val_chimap/')
     parser.add_argument('--test_input_path', type=str, default='./data_val/real_localfield/')
     parser.add_argument('--test_gt_path', type=str, default='./data_val/real_chimap/')
-    parser.add_argument('--GPU_NUM', type=str, default='0')   # 3[0], 4[2], 5[4], 6[5], 7[6]
+    parser.add_argument('--GPU_NUM', type=str, default='1')   # 3[0], 4[2], 5[4], 6[5], 7[6]
 
     # model hyper-parameters
     # parser.add_argument('--OUTPUT_C', type=int, default=1)  # OUTPUT CHANNELS

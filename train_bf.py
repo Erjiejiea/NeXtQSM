@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 '''
 
- @Time     :
+ @Time     : 3/28/23, 2:55 PM
  @Author   : yqq
- @Modified : Jie, 3/28/23, 2:55 PM
+ @Modified : Jie, 4/18/23, 7:52 PM
 
 '''
 
@@ -13,15 +13,21 @@ import numpy as np
 import tensorflow as tf
 
 from network.unet import UNet
-from network.ops import net_analysis
-from utils.data_loader import load_training_volume, load_testing_volume
-from utils.misc import mkexperiment, get_act_function
-from utils.save_image import SaveImageCallback
+from utils.data_loader import get_loader
+from utils.misc import mkexperiment, get_act_function, plot_history
+from utils.save_image import SaveImageCallback, MyCallback
 
 
 def main(config):
     # check gpu
     os.environ['CUDA_VISIBLE_DEVICES'] = config.GPU_NUM
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    if gpus:
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+    # strategy = tf.distribute.MirroredStrategy(devices=["/gpu:0", "/gpu:1"])
+    # print(tf.config.experimental.list_physical_devices('GPU'))
+    # tf.debugging.set_log_device_placement(True)
 
     # random seed
     np.random.seed(2)
@@ -30,147 +36,96 @@ def main(config):
     experiment_path = mkexperiment(config, cover=True)
     inter_result_path = os.path.join(experiment_path, 'inter_result')
     model_path = os.path.join(config.model_path, config.name)
-    bf_checkpoint_path = model_path + 'bf_{epoch_04d}.ckpt'
+    bf_checkpoint_path = model_path + '/' + config.name + '_epoch_{epoch}.ckpt'
 
     # load data
-    totalfield_paths = os.listdir(config.totalfield_path)
-    localfield_paths = os.listdir(config.localfield_path)
-    sim_datasets = []
-    sim_metas = []
-    num_samples = 0
-    # for index in range(len(totalfield_paths)):
-    for index in range(2):
-        sim_dataset, sim_meta = load_training_volume(
-        {"totalfiled": os.path.join(config.totalfield_path, totalfield_paths[index]),
-         "localfiled": os.path.join(config.localfield_path, localfield_paths[index]),
-         "mask": None})
-        sim_datasets.append(sim_dataset)
-        sim_metas.append(sim_meta)
-        num_samples = num_samples + 1
-    print('Loaded {} samples for training.'.format(num_samples))
+    train_dataset = get_loader(config.train_input_path, config.train_gt_path, config,
+                               config.BATCH_SIZE, config.crop_key, mode='train')
+    val_dataset = get_loader(config.val_input_path, config.val_gt_path, config,
+                             config.BATCH_SIZE, config.crop_key, mode='train')
+    test_dataset = get_loader(config.test_input_path, config.test_gt_path, config,
+                              1, False, mode='brain')
 
-    real_tot_paths = os.listdir(os.path.join(config.realdata_path, 'totalfield'))
-    real_loc_paths = os.listdir(os.path.join(config.realdata_path, 'localfield'))
-    real_datasets = []
-    real_metas = []
-    num_samples_real = 0
-    for index2 in range(2):
-        real_dataset, real_meta = load_testing_volume(
-            {"totalfiled": os.path.join(config.realdata_path, 'totalfield', real_tot_paths[index2]),
-             "localfiled": os.path.join(config.realdata_path, 'localfield', real_loc_paths[index2]),
-             "mask": None})
-        real_datasets.append(real_dataset)
-        real_metas.append(real_meta)
-        num_samples_real = num_samples_real + 1
-    print('Loded {} real brain.'.format(num_samples_real))
-
+    # with strategy.scope():
     # model: BF
     bf_network = UNet(1, config.n_layers, config.starting_filters, 3, config.kernel_initializer, config.batch_norm,
                       0., get_act_function(config.act_func), config.conv_per_layer, False, False, None)
-    # bf_network.load_weights(ckp_path + "zdir_calc-HRbf-rmse-weights")
-    bf_network.summary((256, 256, 256, 1))  # (64, 64, 64, 1)
+    bf_network.summary((256, 256, 256, 1), )  # (64, 64, 64, 1)
 
-    # cost function
-    loss_fn = tf.keras.losses.MeanSquaredError()
-
-    # optimizer
-    optimizer = tf.keras.optimizers.Adam(learning_rate=config.learning_rate, beta_1=0.09, beta_2=0.009)
-
-    # setup device
-    # device_name = tf.test.gpu_device_name()
-    # print(device_name)
-    # if device_name != '/device:GPU:' + config.GPU_NUM:
-    #     raise SystemError('GPU device not found')
-    # print('Found GPU at: {}'.format(device_name))
+    # cost function & optimizer
+    bf_network.compile(loss=tf.keras.losses.MeanSquaredError(),
+                       optimizer=tf.keras.optimizers.Adam(learning_rate=config.learning_rate, beta_1=0.09,
+                                                          beta_2=0.009))
 
     # train
-    bf_network.compile(loss=loss_fn, optimizer=optimizer)
-
-    # images = tf.expand_dims(sim_bf_datasets, 4)
-    # labels = tf.expand_dims(sim_sus_datasets, 4)
-    images = tf.convert_to_tensor(np.stack(item["totalfield"] for item in sim_datasets))
-    labels = tf.convert_to_tensor(np.stack(item["localfield"] for item in sim_datasets))
-
-    train_sample_num = 2000 * 0.8
-    test_sample_num= 2000 * 0.1
-    val_sample_num = 2000 * 0.1
-    train_images, val_images, test_images = tf.split(
-        images,
-        num_or_size_splits=[train_sample_num, val_sample_num, test_sample_num],
-        # axis=0
-    )
-    train_labels, val_labels, test_lables = tf.split(
-        labels,
-        num_or_size_splits=[train_sample_num, val_sample_num, test_sample_num],
-        # axis=0
-    )
-
     # create checkpoint callback
-    real_data = tf.convert_to_tensor(np.stack(item["totalfield"] for item in real_datasets))
-    cp_callpack = SaveImageCallback(save_dir_model=bf_checkpoint_path,
-                                    save_dir_inter_result=inter_result_path,
-                                    interval=config.save_epoch,
-                                    real_data=real_data)
+    checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=bf_checkpoint_path,
+                                                    save_freq="epoch",
+                                                    save_best_only=True,
+                                                    verbose=1,
+                                                    period=config.save_period)
+    # early_stopping = tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=5)
+    cp_callback = SaveImageCallback(save_dir_inter_result=inter_result_path,
+                                    interval=config.save_period,
+                                    real_data=test_dataset,
+                                    crange=[-0.1, 0.1])
+    # log_callback = MyCallback(epoch_num=config.epochs_train)
 
+    # strategy = tf.distribute.OneDeviceStrategy(device='/gpu:'+config.GPU_NUM)
+    # with strategy.scope():
     print('# Fit bf_model on training data')
-    bf_history = bf_network.fit(train_images,
-                                train_labels,
-                                batch_size=config.batch_size,
+    bf_history = bf_network.fit(train_dataset,
                                 epochs=config.epochs_train,
-                                verbose=2,
-                                callbacks=[cp_callpack],
+                                callbacks=[checkpoint, cp_callback],
                                 shuffle=True,
-                                validation_data=(val_images, val_labels))  # pass callback to training for saving the model
+                                validation_data=val_dataset,
+                                verbose=1)  # pass callback to training for saving the model
 
     loss_bf_history = bf_history.history['loss']
+    print('Loss: ', loss_bf_history)
+
+    plot_history(bf_history)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # experiment info
-    parser.add_argument('--name', type=str, default='version1')
+    parser.add_argument('--name', type=str, default='v2_5layers')
     parser.add_argument('--experiment_path', type=str, default='')
-    parser.add_argument('--sus_path', type=str, default='/DATA_Temp/cj/QSM/NeXtQSM/train/train_synthetic_brain/')
-    parser.add_argument('--localfield_path', type=str, default='/DATA_Temp/cj/QSM/NeXtQSM/train_localfield_masked/')
-    parser.add_argument('--totalfield_path', type=str, default='/DATA_Temp/cj/QSM/NeXtQSM/train_totalfield/')
-    parser.add_argument('--realdata_path', type=str, default='/DATA_Temp/cj/QSM/NeXtQSM/realdata_for_NeXtQSM/')
-    parser.add_argument('--GPU_NUM', type=str, default='3')
+    parser.add_argument('--train_input_path', type=str, default='./data_val/train_totalfield/')
+    parser.add_argument('--train_gt_path', type=str, default='./data_val/train_localfield/')
+    parser.add_argument('--val_input_path', type=str, default='./data_val/val_totalfield/')
+    parser.add_argument('--val_gt_path', type=str, default='./data_val/val_localfield/')
+    parser.add_argument('--test_input_path', type=str, default='./data_val/real_totalfield_2/')
+    parser.add_argument('--test_gt_path', type=str, default='./data_val/real_localfield/')
+    parser.add_argument('--GPU_NUM', type=str, default='7')  # 3[0], 4[2], 5[4], 6[5], 7[6]
+
+    # dataset parameters
+    parser.add_argument('--BATCH_SIZE', type=int, default=2)
+    parser.add_argument('--INPUT_H', type=int, default=256)
+    parser.add_argument('--INPUT_W', type=int, default=256)
+    parser.add_argument('--INPUT_D', type=int, default=256)
+    parser.add_argument('--crop_key', type=bool, default=True)
+    parser.add_argument('--CROP_SIZE', type=int, default=64)
 
     # model hyper-parameters
-    parser.add_argument('--OUTPUT_C', type=int, default=1)  # OUTPUT CHANNELS
     parser.add_argument('--n_layers', type=int, default=7)
     parser.add_argument('--starting_filters', type=int, default=16)
-    parser.add_argument('--kernel_initializer', type=str, default='he_normal')
-    parser.add_argument('--batch_norm', )
-
+    parser.add_argument('--kernel_initializer', type=str, default='he_normal')  # he_normal
+    parser.add_argument('--batch_norm', type=bool, default=False)
     parser.add_argument('--act_func', type=str, default='relu')
     parser.add_argument('--conv_per_layer', type=int, default=1)
 
     # training hyper-parameters
     parser.add_argument('--all_batch_size', type=int, default=1)
-    parser.add_argument('--batch_size', type=int, default=2)
     parser.add_argument('--learning_rate', type=float, default=4e-4)  # .0003
-
-    parser.add_argument('--weight_vn', type=float, default=10.0)
-    parser.add_argument('--vn_n_steps', type=int, default=6)
-    parser.add_argument('--vn_batch_norm', type=bool, default=False)
-    parser.add_argument('--vn_batch_size', type=int, default=1)
-    parser.add_argument('--vn_lr', type=float, default=0.005)
-    parser.add_argument('--vn_n_layers', type=int, default=6)
-    parser.add_argument('--vn_kernel_initializer', type=str, default='he_normal')
-    parser.add_argument('--vn_act_func', type=str, default='relu')
-    parser.add_argument('--vn_l_init', type=float, default=0.1)
-    parser.add_argument('--vn_starting_filters', type=int, default=16)
-    parser.add_argument('--vn_dt_loss', type=str, default='RMSE')
-
     parser.add_argument('--epochs_train', type=int, default=100)
     parser.add_argument('--save_period', type=int, default=1)
 
     # misc
-    parser.add_argument('--model_path', type=str, default='./models/')  # phase unwrapped (totalfield) to phase tissue (localfield)
-    # parser.add_argument('--vn_model_path', type=str, default='./models/vn/')  # phase tissue (localfield) to susceptibility (chimap)
-    parser.add_argument('--result_path', type=str, default='./results/')
+    parser.add_argument('--model_path', type=str, default='./models/bf/')  # total_field to local_field
+    parser.add_argument('--result_path', type=str, default='./results/bf/')
 
     config = parser.parse_args()
     main(config)
