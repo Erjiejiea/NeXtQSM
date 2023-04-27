@@ -14,7 +14,7 @@ import tensorflow as tf
 
 from network.unet import UNet
 from utils.data_loader import get_loader
-from utils.misc import mkexperiment, get_act_function
+from utils.misc import mkexperiment, get_act_function, plot_history
 from utils.save_image import SaveImageCallback, MyCallback
 
 
@@ -36,11 +36,13 @@ def main(config):
     experiment_path = mkexperiment(config, cover=True)
     inter_result_path = os.path.join(experiment_path, 'inter_result')
     model_path = os.path.join(config.model_path, config.name)
-    bf_checkpoint_path = model_path + '_bf_{epoch}.ckpt'
+    bf_checkpoint_path = model_path + '/' + config.name + '_epoch_{epoch}.ckpt'
 
     # load data
     train_dataset = get_loader(config.train_input_path, config.train_gt_path, config,
                                config.BATCH_SIZE, config.crop_key, mode='train')
+    val_dataset = get_loader(config.val_input_path, config.val_gt_path, config,
+                             config.BATCH_SIZE, config.crop_key, mode='train')
     test_dataset = get_loader(config.test_input_path, config.test_gt_path, config,
                               1, False, mode='brain')
 
@@ -53,8 +55,7 @@ def main(config):
     # cost function & optimizer
     bf_network.compile(loss=tf.keras.losses.MeanSquaredError(),
                        optimizer=tf.keras.optimizers.Adam(learning_rate=config.learning_rate, beta_1=0.09,
-                                                          beta_2=0.009),
-                       metrics=[tf.keras.metrics.MeanSquaredError()])
+                                                          beta_2=0.009))
 
     # train
     # create checkpoint callback
@@ -77,23 +78,27 @@ def main(config):
                                 epochs=config.epochs_train,
                                 callbacks=[checkpoint, cp_callback],
                                 shuffle=True,
-                                # validation_split=0.1,
-                                verbose=2)  # pass callback to training for saving the model
+                                validation_data=val_dataset,
+                                verbose=1)  # pass callback to training for saving the model
 
     loss_bf_history = bf_history.history['loss']
     print('Loss: ', loss_bf_history)
+
+    plot_history(bf_history)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # experiment info
-    parser.add_argument('--name', type=str, default='version1')
+    parser.add_argument('--name', type=str, default='version2')
     parser.add_argument('--experiment_path', type=str, default='')
-    parser.add_argument('--train_input_path', type=str, default='./data/train_totalfield/')
-    parser.add_argument('--train_gt_path', type=str, default='./data/train_localfield/')
-    parser.add_argument('--test_input_path', type=str, default='./data/real_totalfield/')
-    parser.add_argument('--test_gt_path', type=str, default='./data/real_localfield/')
+    parser.add_argument('--train_input_path', type=str, default='./data_val/train_totalfield/')
+    parser.add_argument('--train_gt_path', type=str, default='./data_val/train_localfield/')
+    parser.add_argument('--val_input_path', type=str, default='./data_val/val_totalfield/')
+    parser.add_argument('--val_gt_path', type=str, default='./data_val/val_localfield/')
+    parser.add_argument('--test_input_path', type=str, default='./data_val/real_totalfield_2/')
+    parser.add_argument('--test_gt_path', type=str, default='./data_val/real_localfield/')
     parser.add_argument('--GPU_NUM', type=str, default='7')  # 3[0], 4[2], 5[4], 6[5], 7[6]
 
     # dataset parameters
@@ -105,7 +110,7 @@ if __name__ == '__main__':
     parser.add_argument('--CROP_SIZE', type=int, default=64)
 
     # model hyper-parameters
-    parser.add_argument('--n_layers', type=int, default=5)
+    parser.add_argument('--n_layers', type=int, default=7)
     parser.add_argument('--starting_filters', type=int, default=16)
     parser.add_argument('--kernel_initializer', type=str, default='he_normal')  # he_normal
     parser.add_argument('--batch_norm', type=bool, default=False)
@@ -119,7 +124,7 @@ if __name__ == '__main__':
     parser.add_argument('--save_period', type=int, default=1)
 
     # misc
-    parser.add_argument('--model_path', type=str, default='./models/')  # total_field to local_field
+    parser.add_argument('--model_path', type=str, default='./models/bf/')  # total_field to local_field
     parser.add_argument('--result_path', type=str, default='./results/bf/')
 
     config = parser.parse_args()

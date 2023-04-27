@@ -8,6 +8,7 @@ import os
 import math
 import shutil
 import matplotlib.pyplot as plt
+import pandas as pd
 
 
 def get_base_path(prefix=""):
@@ -127,6 +128,7 @@ def save_tf_result(tensor, save_dir,
     else:
         plt.imsave(save_dir + '.' + format, merge_img, cmap=cmap, vmin=crange[0], vmax=crange[1])
 
+
 def save_numpy_result(nparray, save_dir,
                       nrow=4, padding=0, pad_value=0,
                       format='jpg', cmap='gray', norm=False, crange=[0, 1]):
@@ -228,4 +230,17 @@ def mkexperiment(config,cover=False):
     return experiment_path
 
 
+def plot_history(history):
+    hist = pd.DataFrame(history.histpry)
+    hist['epoch'] = history.epoch
+
+    plt.figure()
+    plt.xlabel('Epoch')
+    plt.ylabel('Mean Squared Error')
+    plt.plot(hist['epoch'], hist['loss'], label='Train Error')
+    plt.plot(hist['epoch'], hist['val_loss'], label='Val Error')
+    plt.ylim([0, 5])
+    plt.legend()
+
+    plt.show()
 

@@ -16,7 +16,7 @@ from network import varnet
 from network.unet import UNet
 from utils.data_loader import get_loader
 from utils.data_loader_nii import gen_dataset, gen_dataset_test
-from utils.misc import mkexperiment, get_act_function
+from utils.misc import mkexperiment, get_act_function, plot_history
 from utils.save_image import SaveImageCallback
 
 
@@ -37,7 +37,7 @@ def main(config):
     experiment_path = mkexperiment(config, cover=True)
     inter_result_path = os.path.join(experiment_path, 'inter_result')
     model_path = os.path.join(config.model_path, config.name)
-    bf_checkpoint_path = model_path + 'vn_epoch_{epoch}.ckpt'
+    bf_checkpoint_path = model_path + '_vn_epoch_{epoch}.ckpt'
 
     # load data
     train_dataset = get_loader(config.train_input_path, config.train_gt_path, config,
@@ -45,7 +45,7 @@ def main(config):
     val_dataset = get_loader(config.val_input_path, config.val_gt_path, config,
                                config.BATCH_SIZE, config.crop_key, mode='train')
     test_dataset = get_loader(config.test_input_path, config.test_gt_path, config,
-                              2, False, mode='brain')
+                              4, True, mode='brain')
 
     # print('Loaded {} samples for training.'.format(len(train_x_dataset)))
     # print('Loaded {} samples for validation.'.format(len(val_x_dataset)))
@@ -69,7 +69,7 @@ def main(config):
     # create checkpoint callback
     checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=bf_checkpoint_path,
                                                     save_freq="epoch",
-                                                    save_best_only=True,
+                                                    # save_best_only=True,
                                                     period=config.save_period)
     # early_stopping = tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=5)
     cp_callpack = SaveImageCallback(save_dir_inter_result=inter_result_path,
@@ -85,17 +85,20 @@ def main(config):
                                 callbacks=[checkpoint, cp_callpack],
                                 shuffle=True,
                                 validation_data=val_dataset,
-                                verbose=2)
+                                verbose=1)
     # pass callback to training for saving the model
 
     loss_bf_history = bf_history.history['loss']
     print('Loss: ', loss_bf_history)
 
+    plot_history(bf_history)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # experiment info
-    parser.add_argument('--name', type=str, default='version1')
+    parser.add_argument('--name', type=str, default='version2')
     parser.add_argument('--experiment_path', type=str, default='')
     parser.add_argument('--train_input_path', type=str, default='./data_val/train_localfield/')
     parser.add_argument('--train_gt_path', type=str, default='./data_val/train_chimap/')
@@ -107,7 +110,7 @@ if __name__ == '__main__':
 
     # model hyper-parameters
     # parser.add_argument('--OUTPUT_C', type=int, default=1)  # OUTPUT CHANNELS
-    parser.add_argument('--n_layers', type=int, default=5)
+    parser.add_argument('--n_layers', type=int, default=7)
     parser.add_argument('--starting_filters', type=int, default=16)
     parser.add_argument('--kernel_initializer', type=str, default='he_normal')  # he_normal
     parser.add_argument('--batch_norm', type=bool, default=False)
@@ -142,7 +145,7 @@ if __name__ == '__main__':
     parser.add_argument('--save_period', type=int, default=1)
 
     # misc
-    parser.add_argument('--model_path', type=str, default='./models/')  # phase unwrapped (totalfield) to phase tissue (localfield)
+    parser.add_argument('--model_path', type=str, default='./models/vn/')  # phase unwrapped (totalfield) to phase tissue (localfield)
     parser.add_argument('--result_path', type=str, default='./results/vn/')
 
     config = parser.parse_args()

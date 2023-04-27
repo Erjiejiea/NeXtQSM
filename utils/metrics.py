@@ -33,19 +33,3 @@ class MetricsManager:
 
     def RMSE(self, labels, logits, mask):
         return 100 * tf.norm(labels - logits) / tf.norm(labels)
-
-
-def plot_history(history):
-    hist = pd.DataFrame(history.histpry)
-    hist['epoch'] = history.epoch
-
-    plt.figure()
-    plt.xlabel('Epoch')
-    plt.ylabel('Mean Abs Error')
-    plt.plot(hist['epoch'], hist['mae'], label='Train Error')
-    plt.plot(hist['epoch'], hist['val_mae'], label='Val Error')
-    plt.ylim([0, 5])
-    plt.legend()
-
-    plt.show()
-
