@@ -8,6 +8,7 @@
 '''
 
 import argparse
+import csv
 import os
 import numpy as np
 import tensorflow as tf
@@ -68,21 +69,30 @@ def main(config):
     cp_callback = SaveImageCallback(save_dir_inter_result=inter_result_path,
                                     interval=config.save_period,
                                     real_data=test_dataset,
-                                    crange=[-0.1, 0.1])
-    # log_callback = MyCallback(epoch_num=config.epochs_train)
+                                    crange=[-0.15, 0.15])
+    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=os.path.join(experiment_path, 'tensorboard'))
+    # start Tensorboard and see logs(open browser: http://localhost:6006/):
+    # %load_ext tensorboard
+    # %tensorboard --logdir logs
 
-    # strategy = tf.distribute.OneDeviceStrategy(device='/gpu:'+config.GPU_NUM)
-    # with strategy.scope():
     print('# Fit bf_model on training data')
     bf_history = bf_network.fit(train_dataset,
                                 epochs=config.epochs_train,
-                                callbacks=[checkpoint, cp_callback],
+                                callbacks=[checkpoint, cp_callback, tensorboard_callback],
                                 shuffle=True,
                                 validation_data=val_dataset,
                                 verbose=1)  # pass callback to training for saving the model
 
     loss_bf_history = bf_history.history['loss']
+    val_loss_bf_history = bf_history.history['val_loss']
     print('Loss: ', loss_bf_history)
+
+    # save as csv file
+    f = open(os.path.join(experiment_path, 'result.csv'), 'a', encoding='utf-8', newline='')
+    wr = csv.writer(f)
+    wr.writerow(['Epoch', 'train loss', 'val loss'])
+    for epoch, (train, val) in enumerate(zip(loss_bf_history, val_loss_bf_history)):
+        wr.writerow([epoch, train, val])
 
     plot_history(bf_history)
 
@@ -91,7 +101,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # experiment info
-    parser.add_argument('--name', type=str, default='v2_5layers')
+    parser.add_argument('--name', type=str, default='v2_7layers')
     parser.add_argument('--experiment_path', type=str, default='')
     parser.add_argument('--train_input_path', type=str, default='./data_val/train_totalfield/')
     parser.add_argument('--train_gt_path', type=str, default='./data_val/train_localfield/')
