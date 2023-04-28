@@ -8,6 +8,7 @@
 '''
 
 import argparse
+import csv
 import os
 import numpy as np
 import tensorflow as tf
@@ -76,20 +77,28 @@ def main(config):
                                     interval=config.save_period,
                                     real_data=test_dataset,
                                     crange=[-0.1, 0.1])
+    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=os.path.join(experiment_path, 'tensorboard'))
 
     # with tf.device('/GPU:0'):
     vn_network.compile(loss=loss_fn, optimizer=optimizer)  #metrics=['accuracy', 'val_loss']
     print('# Fit bf_model on training data')
     vn_history = vn_network.fit(train_dataset,
                                 epochs=config.epochs_train,
-                                callbacks=[checkpoint, cp_callpack],
+                                callbacks=[checkpoint, cp_callpack, tensorboard_callback],
                                 shuffle=True,
                                 validation_data=val_dataset,
                                 verbose=1)
     # pass callback to training for saving the model
 
     loss_vn_history = vn_history.history['loss']
+    val_loss_vn_history = vn_history.history['val_loss']
     print('Loss: ', loss_vn_history)
+
+    f = open(os.path.join(experiment_path, 'result.csv'), 'a', encoding='utf-8', newline='')
+    wr = csv.writer(f)
+    wr.writerow(['Epoch', 'train loss', 'val loss'])
+    for epoch, (train, val) in enumerate(zip(loss_vn_history, val_loss_vn_history)):
+        wr.writerow([epoch, train, val])
 
     plot_history(vn_history)
 
@@ -98,7 +107,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # experiment info
-    parser.add_argument('--name', type=str, default='version2')
+    parser.add_argument('--name', type=str, default='v2_7layer')
     parser.add_argument('--experiment_path', type=str, default='')
     parser.add_argument('--train_input_path', type=str, default='./data_val/train_localfield/')
     parser.add_argument('--train_gt_path', type=str, default='./data_val/train_chimap/')
@@ -106,7 +115,8 @@ if __name__ == '__main__':
     parser.add_argument('--val_gt_path', type=str, default='./data_val/val_chimap/')
     parser.add_argument('--test_input_path', type=str, default='./data_val/real_localfield/')
     parser.add_argument('--test_gt_path', type=str, default='./data_val/real_chimap/')
-    parser.add_argument('--GPU_NUM', type=str, default='1')   # 3[0], 4[2], 5[4], 6[5], 7[6]
+    parser.add_argument('--GPU_NUM', type=str, default='0')   # 3[0], 4[2], 5[4], 6[5], 7[6]
+    # 0[6],1[6],2[6],
 
     # model hyper-parameters
     # parser.add_argument('--OUTPUT_C', type=int, default=1)  # OUTPUT CHANNELS

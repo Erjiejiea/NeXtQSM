@@ -62,7 +62,7 @@ def main(config):
     # create checkpoint callback
     checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=bf_checkpoint_path,
                                                     save_freq="epoch",
-                                                    save_best_only=True,
+                                                    # save_best_only=True,
                                                     verbose=1,
                                                     period=config.save_period)
     # early_stopping = tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=5)
@@ -101,7 +101,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # experiment info
-    parser.add_argument('--name', type=str, default='v2_7layers')
+    parser.add_argument('--name', type=str, default='v2_7layer')
     parser.add_argument('--experiment_path', type=str, default='')
     parser.add_argument('--train_input_path', type=str, default='./data_val/train_totalfield/')
     parser.add_argument('--train_gt_path', type=str, default='./data_val/train_localfield/')
