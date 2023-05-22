@@ -115,11 +115,10 @@ if __name__ == '__main__':
     parser.add_argument('--val_gt_path', type=str, default='./data_val/val_chimap/')
     parser.add_argument('--test_input_path', type=str, default='./data_val/real_localfield/')
     parser.add_argument('--test_gt_path', type=str, default='./data_val/real_chimap/')
-    parser.add_argument('--GPU_NUM', type=str, default='0')   # 3[0], 4[2], 5[4], 6[5], 7[6]
+    parser.add_argument('--GPU_NUM', type=str, default='3')   # 3[0], 4[2], 5[4], 6[5], 7[6]
     # 0[6],1[6],2[6],
 
     # model hyper-parameters
-    # parser.add_argument('--OUTPUT_C', type=int, default=1)  # OUTPUT CHANNELS
     parser.add_argument('--n_layers', type=int, default=7)
     parser.add_argument('--starting_filters', type=int, default=16)
     parser.add_argument('--kernel_initializer', type=str, default='he_normal')  # he_normal

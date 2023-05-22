@@ -8,6 +8,7 @@
 '''
 
 import argparse
+import csv
 import os
 import numpy as np
 import tensorflow as tf
@@ -33,7 +34,7 @@ def main(config):
     np.random.seed(2)
 
     # set up experiment
-    experiment_path = mkexperiment(config, cover=True)
+    experiment_path = mkexperiment(config, cover=False)
     inter_result_path = os.path.join(experiment_path, 'inter_result')
     model_path = os.path.join(config.model_path, config.name)
     bf_checkpoint_path = model_path + '/' + config.name + '_epoch_{epoch}.ckpt'
@@ -69,20 +70,32 @@ def main(config):
                                     interval=config.save_period,
                                     real_data=test_dataset,
                                     crange=[-0.1, 0.1])
+    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=os.path.join(experiment_path, 'tensorboard'))
     # log_callback = MyCallback(epoch_num=config.epochs_train)
 
-    # strategy = tf.distribute.OneDeviceStrategy(device='/gpu:'+config.GPU_NUM)
-    # with strategy.scope():
+    # continue training
+    latest = tf.train.latest_checkpoint(bf_checkpoint_path)
+    if latest is not None:
+        bf_network.load_weights(latest)
+
     print('# Fit bf_model on training data')
     bf_history = bf_network.fit(train_dataset,
                                 epochs=config.epochs_train,
-                                callbacks=[checkpoint, cp_callback],
+                                callbacks=[checkpoint, cp_callback, tensorboard_callback],
                                 shuffle=True,
                                 validation_data=val_dataset,
                                 verbose=1)  # pass callback to training for saving the model
 
     loss_bf_history = bf_history.history['loss']
+    val_loss_bf_history = bf_history.history['val_loss']
     print('Loss: ', loss_bf_history)
+
+    # save as csv file
+    f = open(os.path.join(experiment_path, 'result.csv'), 'a', encoding='utf-8', newline='')
+    wr = csv.writer(f)
+    wr.writerow(['Epoch', 'train loss', 'val loss'])
+    for epoch, (train, val) in enumerate(zip(loss_bf_history, val_loss_bf_history)):
+        wr.writerow([epoch, train, val])
 
     plot_history(bf_history)
 
@@ -91,7 +104,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # experiment info
-    parser.add_argument('--name', type=str, default='version2')
+    parser.add_argument('--name', type=str, default='v3_nocrop')
     parser.add_argument('--experiment_path', type=str, default='')
     parser.add_argument('--train_input_path', type=str, default='./data_val/train_totalfield/')
     parser.add_argument('--train_gt_path', type=str, default='./data_val/train_localfield/')
@@ -99,14 +112,14 @@ if __name__ == '__main__':
     parser.add_argument('--val_gt_path', type=str, default='./data_val/val_localfield/')
     parser.add_argument('--test_input_path', type=str, default='./data_val/real_totalfield_2/')
     parser.add_argument('--test_gt_path', type=str, default='./data_val/real_localfield/')
-    parser.add_argument('--GPU_NUM', type=str, default='7')  # 3[0], 4[2], 5[4], 6[5], 7[6]
+    parser.add_argument('--GPU_NUM', type=str, default='5')  # 3[0], 4[2], 5[4], 6[5], 7[6]
 
     # dataset parameters
     parser.add_argument('--BATCH_SIZE', type=int, default=2)
     parser.add_argument('--INPUT_H', type=int, default=256)
     parser.add_argument('--INPUT_W', type=int, default=256)
     parser.add_argument('--INPUT_D', type=int, default=256)
-    parser.add_argument('--crop_key', type=bool, default=True)
+    parser.add_argument('--crop_key', type=bool, default=False)
     parser.add_argument('--CROP_SIZE', type=int, default=64)
 
     # model hyper-parameters
