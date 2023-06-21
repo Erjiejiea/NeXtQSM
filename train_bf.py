@@ -101,14 +101,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # experiment info
-    parser.add_argument('--name', type=str, default='v2_7layer')
+    parser.add_argument('--name', type=str, default='v0620')
     parser.add_argument('--experiment_path', type=str, default='')
     parser.add_argument('--train_input_path', type=str, default='./data_val/train_totalfield/')
     parser.add_argument('--train_gt_path', type=str, default='./data_val/train_localfield/')
     parser.add_argument('--val_input_path', type=str, default='./data_val/val_totalfield/')
     parser.add_argument('--val_gt_path', type=str, default='./data_val/val_localfield/')
-    parser.add_argument('--test_input_path', type=str, default='./data_val/real_totalfield_2/')
-    parser.add_argument('--test_gt_path', type=str, default='./data_val/real_localfield/')
+    parser.add_argument('--test_input_path', type=str, default='./data/real_totalfield_rerange/')
+    parser.add_argument('--test_gt_path', type=str, default='./data/real_localfield_rerange/')
     parser.add_argument('--GPU_NUM', type=str, default='7')  # 3[0], 4[2], 5[4], 6[5], 7[6]
 
     # dataset parameters
